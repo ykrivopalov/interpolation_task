@@ -43,6 +43,18 @@ private:
   const Array2D Data;
 };
 
+class Interpolator3D
+{
+public:
+  Interpolator3D(const Array3D&& data);
+
+  std::function<double (Point3D)> GetFunction() const;
+  Array3D Interpolate(const Point3D& from, const Point3D& to, double step) const;
+
+private:
+  const Array3D Data;
+};
+
 class Interpolation
 {
 public:
@@ -50,4 +62,5 @@ public:
 
   std::unique_ptr<Interpolator1D> Interpolate(const Array&& data);
   std::unique_ptr<Interpolator2D> Interpolate(const Array2D&& data);
+  std::unique_ptr<Interpolator3D> Interpolate(const Array3D&& data);
 };
