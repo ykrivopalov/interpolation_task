@@ -4,53 +4,160 @@
 #include <iostream>
 #include <sstream>
 
-Interpolator1D::Interpolator1D(const DataArray1D&& data)
+void ThrowInvalidPointError(double x)
+{
+  std::ostringstream buf;
+  buf << "point in not defined interval " << x;
+  throw std::runtime_error(buf.str());
+}
+
+void ThrowInvalidPointError(double x, double y)
+{
+  std::ostringstream buf;
+  buf << "point in not defined interval (" << x << ", " << y << ")" << std::endl;
+  throw std::runtime_error(buf.str());
+}
+
+void ThrowGridIsInvalid()
+{
+  throw std::runtime_error("grid is invalid");
+}
+
+Interpolator1D::Interpolator1D(const Array&& data)
   : Data(data)
 {
 }
 
-std::function<double (Point1D)> Interpolator1D::GetFunction() const
+std::function<double (Point)> Interpolator1D::GetFunction() const
+{
+  return std::bind(&Interpolator1D::Evaluate, this, std::placeholders::_1);
+}
+
+Array Interpolator1D::Interpolate(const Point& from, const Point& to, double step) const
+{
+  Array result;
+  result.reserve(static_cast<int>((to - from) / step) + 1);
+  for (Point x = from; x <= to; x += step)
+  {
+    const double f = Evaluate(x);
+    result.push_back(Pair(x, f));
+  }
+
+  return result;
+}
+
+double Interpolator1D::Evaluate(double x) const
+{
+  Array::const_iterator rightBound = std::lower_bound(
+    Data.begin(), Data.end(), x,
+    [](const Pair& a, const Point& b){ return std::get<0>(a) < b; }
+  );
+
+  if (rightBound == Data.end())
+    ThrowInvalidPointError(x);
+
+  if (std::get<0>(*rightBound) == x)
+    return std::get<1>(*rightBound);
+
+  if (rightBound == Data.begin())
+    ThrowInvalidPointError(x);
+
+  Array::const_iterator leftBound = rightBound - 1;
+
+  const double x0 = std::get<0>(*leftBound);
+  const double x1 = std::get<0>(*rightBound);
+  const double f0 = std::get<1>(*leftBound);
+  const double f1 = std::get<1>(*rightBound);
+  const double xd = (x - x0) / (x1 - x0);
+  return f0 * (1 - xd) + f1 * xd;
+}
+
+Interpolator2D::Interpolator2D(const Array2D&& data)
+  : Data(data)
+{
+}
+
+std::function<double (Point2D)> Interpolator2D::GetFunction() const
 {
   throw std::string("not impelemented");
 }
 
-DataArray1D Interpolator1D::Evaluate(const Point1D& from, const Point1D& to, double step) const
+Array2D Interpolator2D::Interpolate(const Point2D& from, const Point2D& to, double step) const
 {
-  std::cout << "Evaluate " << from << " " << to << " " << step << std::endl;
-  DataArray1D result;
-  result.reserve(static_cast<int>((to - from) / step) + 1);
-  for (Point1D i = from; i <= to; i += step)
+  Array2D result;
+  for (double x = std::get<0>(from); x <= std::get<0>(to); x += step)
   {
-    DataArray1D::const_iterator rightBound = std::lower_bound(
-      Data.begin(), Data.end(), i,
-      [](const Data1D& a, const Point1D& b){ return std::get<0>(a) <= b; }
+    Array2D::const_iterator x0RowIter;
+    Array2D::const_iterator x1RowIter = std::lower_bound(
+      Data.begin(), Data.end(), x,
+      [](const DataRow2D& a, const Point& b){ return std::get<0>(a) < b; }
     );
 
-    if (rightBound == Data.end())
+    if (x1RowIter == Data.end())
     {
-      std::ostringstream buf;
-      buf << "point in unknown interval left " << i;
-      throw buf.str();
+      ThrowInvalidPointError(x, 0);
+    }
+    else if (x1RowIter == Data.begin() && std::get<0>(*x1RowIter) == x)
+    {
+      x0RowIter = x1RowIter;
+      x1RowIter = x0RowIter + 1;
+    }
+    else
+    {
+      x0RowIter = x1RowIter - 1;
     }
 
-    if (std::get<0>(*rightBound) == i)
+    result.push_back(DataRow2D(x, Array()));
+    Array& resultRow = std::get<1>(result.back());
+    const Array& x1Row = std::get<1>(*x1RowIter);
+    const Array& x0Row = std::get<1>(*x0RowIter);
+
+    const double x0 = std::get<0>(*x0RowIter);
+    const double x1 = std::get<0>(*x1RowIter);
+    const double xd = (x - x0) / (x1 - x0);
+
+    for (double y = std::get<1>(from); y <= std::get<1>(to); y += step)
     {
-      result.push_back(Data1D(i, std::get<1>(*rightBound)));
-      continue;
+      Array::const_iterator x10Data;
+      Array::const_iterator x11Data = std::lower_bound(
+        x1Row.begin(), x1Row.end(), y,
+        [](const Pair& a, const Point& b){ return std::get<0>(a) < b; }
+      );
+
+      if (x11Data == x1Row.end())
+      {
+        ThrowInvalidPointError(y, x);
+      }
+      else if (x11Data == x1Row.begin() && std::get<0>(*x11Data) == y)
+      {
+        x10Data = x11Data;
+        x11Data = x10Data + 1;
+      }
+      else
+      {
+        x10Data = x11Data - 1;
+      }
+
+      std::size_t x11Pos = std::distance(x1Row.begin(), x11Data);
+      if (x0Row.empty() || x0Row.size() - 1 < x11Pos)
+        ThrowGridIsInvalid();
+
+      Array::const_iterator x01Data = x0Row.begin() + x11Pos;
+      Array::const_iterator x00Data = x01Data - 1;
+
+      const double y0 = std::get<0>(*x10Data);
+      const double y1 = std::get<0>(*x11Data);
+      const double f00 = std::get<1>(*x00Data);
+      const double f01 = std::get<1>(*x01Data);
+      const double f10 = std::get<1>(*x10Data);
+      const double f11 = std::get<1>(*x11Data);
+
+      const double yd = (y - y0) / (y1 - y0);
+      const double c0 = f00 * (1 - xd) + f10 * xd;
+      const double c1 = f01 * (1 - xd) + f11 * xd;
+      const double f = c0 * (1 - yd) + c1 * yd;
+      resultRow.push_back(Pair(y, f));
     }
-
-    if (rightBound == Data.begin())
-    {
-      std::ostringstream buf;
-      buf << "point in unknown interval right " << i;
-      throw buf.str();
-    }
-
-    DataArray1D::const_iterator leftBound = rightBound - 1;
-
-    const double coef = (i - std::get<0>(*leftBound)) / (std::get<0>(*rightBound) - std::get<0>(*leftBound));
-    const double value = std::get<1>(*leftBound) * (1 - coef) + std::get<1>(*rightBound) * coef;
-    result.push_back(Data1D(i, value));
   }
 
   return result;
@@ -60,43 +167,12 @@ Interpolation::Interpolation()
 {
 }
 
-std::unique_ptr<Interpolator1D> Interpolation::Interpolate(const DataArray1D&& data)
+std::unique_ptr<Interpolator1D> Interpolation::Interpolate(const Array&& data)
 {
   return std::unique_ptr<Interpolator1D>(new Interpolator1D(std::move(data)));
 }
 
-DataArray1D LoadDataArray1D()
+std::unique_ptr<Interpolator2D> Interpolation::Interpolate(const Array2D&& data)
 {
-  DataArray1D result;
-  double x = 0;
-  double y = 0;
-  while (std::cin >> x >> y)
-  {
-    result.push_back(Data1D(x, y));
-  }
-
-  return result;
-}
-
-int main()
-{
-  DataArray1D data = LoadDataArray1D();
-
-  Interpolation interpolation;
-  std::unique_ptr<Interpolator1D> interpolator = interpolation.Interpolate(std::move(data));
-
-  try
-  {
-    DataArray1D result = interpolator->Evaluate(std::get<0>(data.front()), std::get<0>(data.back()), 0.1);
-
-    for (DataArray1D::const_iterator i = result.begin(); i != result.end(); ++i)
-    {
-      std::cout << std::get<0>(*i) << " " << std::get<1>(*i) << std::endl;
-    }
-  }
-  catch (const std::string& err)
-  {
-    std::cout << err << std::endl;
-    throw;
-  }
+  return std::unique_ptr<Interpolator2D>(new Interpolator2D(std::move(data)));
 }

@@ -5,25 +5,42 @@
 #include <vector>
 #include <map>
 
-typedef double Point1D;
+typedef double Point;
+typedef std::tuple<double, double> Pair;
+typedef std::vector<Pair> Array;
+
 typedef std::tuple<double, double> Point2D;
+typedef std::tuple<double, Array> DataRow2D;
+typedef std::vector<DataRow2D> Array2D;
 
-typedef std::tuple<Point1D, double> Data1D;
-typedef std::tuple<Point2D, double> Data2D;
-
-typedef std::vector<Data1D> DataArray1D;
-typedef std::vector<Data2D> DataArray2D;
+typedef std::tuple<double, double, double> Point3D;
+typedef std::tuple<double, Array2D> DataRow3D;
+typedef std::vector<DataRow3D> Array3D;
 
 class Interpolator1D
 {
 public:
-  Interpolator1D(const DataArray1D&& data);
+  Interpolator1D(const Array&& data);
 
-  std::function<double (Point1D)> GetFunction() const;
-  DataArray1D Evaluate(const Point1D& from, const Point1D& to, double step) const;
+  std::function<double (Point)> GetFunction() const;
+  Array Interpolate(const Point& from, const Point& to, double step) const;
 
 private:
-  DataArray1D Data;
+  double Evaluate(double x) const;
+
+  const Array Data;
+};
+
+class Interpolator2D
+{
+public:
+  Interpolator2D(const Array2D&& data);
+
+  std::function<double (Point2D)> GetFunction() const;
+  Array2D Interpolate(const Point2D& from, const Point2D& to, double step) const;
+
+private:
+  const Array2D Data;
 };
 
 class Interpolation
@@ -31,5 +48,6 @@ class Interpolation
 public:
   Interpolation();
 
-  std::unique_ptr<Interpolator1D> Interpolate(const DataArray1D&& data);
+  std::unique_ptr<Interpolator1D> Interpolate(const Array&& data);
+  std::unique_ptr<Interpolator2D> Interpolate(const Array2D&& data);
 };
