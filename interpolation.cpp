@@ -1,4 +1,5 @@
 #include "interpolation.h"
+#include "log.h"
 
 #include <algorithm>
 #include <iostream>
@@ -151,6 +152,8 @@ Array2D Interpolator2D::Interpolate(const Point2D& from, const Point2D& to, doub
       const double f10 = std::get<1>(*x10Data);
       const double f11 = std::get<1>(*x11Data);
 
+      DEBUG_LOG << "(" << x << "," << y << ") "<< x0 << " " << x1 << " " << y0 << " " << y1 << std::endl;
+
       const double yd = (y - y0) / (y1 - y0);
       const double c0 = f00 * (1 - xd) + f10 * xd;
       const double c1 = f01 * (1 - xd) + f11 * xd;
@@ -201,6 +204,8 @@ Array3D Interpolator3D::Interpolate(const Point3D& from, const Point3D& to, doub
       );
 
       SetBorderIterators(x1Row, y, x11RowIter, x10RowIter, x11RowIter);
+
+
       std::size_t x11Pos = std::distance(x1Row.begin(), x11RowIter);
       if (x0Row.empty() || x0Row.size() - 1 < x11Pos)
         ThrowGridIsInvalid();
@@ -219,7 +224,7 @@ Array3D Interpolator3D::Interpolate(const Point3D& from, const Point3D& to, doub
       const double y1 = std::get<0>(*x11RowIter);
       const double yd = (y - y0) / (y1 - y0);
 
-      for (double z = std::get<2>(from); y <= std::get<2>(to); y += step)
+      for (double z = std::get<2>(from); z <= std::get<2>(to); z += step)
       {
         Array::const_iterator x000Data;
         Array::const_iterator x001Data = std::lower_bound(
@@ -246,6 +251,8 @@ Array3D Interpolator3D::Interpolate(const Point3D& from, const Point3D& to, doub
         const double z0 = std::get<0>(*x000Data);
         const double z1 = std::get<0>(*x001Data);
         const double zd = (z - z0) / (z1 - z0);
+
+        DEBUG_LOG << "(" << x << "," << y << "," << z << ") "<< x0 << " " << x1 << " " << y0 << " " << y1 << " " << z0 << " " << z1 << std::endl;
 
         const double f000 = std::get<1>(*x000Data);
         const double f001 = std::get<1>(*x001Data);

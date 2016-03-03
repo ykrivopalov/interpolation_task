@@ -1,4 +1,5 @@
 #include "interpolation.h"
+#include "log.h"
 
 #include <iostream>
 #include <sstream>
@@ -82,7 +83,7 @@ namespace
   {
     std::ostringstream buf;
     buf << "" << std::get<0>(row) << std::endl;
-    buf << "  " << ToString(std::get<1>(row), "  ") << std::endl;
+    buf << ToString(std::get<1>(row), "  ") << std::endl;
     return buf.str();
   }
 
@@ -99,63 +100,94 @@ namespace
 
 int main(int argc, char** argv)
 {
-  if (argc > 1)
+  if (argc < 3 ||
+      (argc > 1 && (argv[0] == std::string("-h") || argv[0] == std::string("--help"))))
   {
-    if (argv[1] == std::string("1d"))
+    std::cout << "Usage: ./interpolate <type> <step>" << std::endl
+      << "Where: <type> - 1d|2d|3d" << std::endl << std::endl
+      << "Example: " << "cat sample_data/data2d | ./interpolate 2d 0.5" << std::endl;
+    return 0;
+  }
+
+  std::istringstream buf(argv[2]);
+  double step = 0;
+  buf >> step;
+
+  if (argv[1] == std::string("1d"))
+  {
+    Array data = LoadArray();
+
+    Interpolation interpolation;
+    std::unique_ptr<Interpolator1D> interpolator = interpolation.Interpolate(std::move(data));
+
+    try
     {
-      Array data = LoadArray();
+      Array result = interpolator->Interpolate(std::get<0>(data.front()), std::get<0>(data.back()), step);
 
-      Interpolation interpolation;
-      std::unique_ptr<Interpolator1D> interpolator = interpolation.Interpolate(std::move(data));
-
-      try
+      for (Array::const_iterator i = result.begin(); i != result.end(); ++i)
       {
-        Array result = interpolator->Interpolate(std::get<0>(data.front()), std::get<0>(data.back()), 0.1);
-
-        for (Array::const_iterator i = result.begin(); i != result.end(); ++i)
-        {
-          std::cout << std::get<0>(*i) << " " << std::get<1>(*i) << std::endl;
-        }
-      }
-      catch (const std::exception& err)
-      {
-        std::cout << err.what() << std::endl;
-        throw;
+        std::cout << std::get<0>(*i) << " " << std::get<1>(*i) << std::endl;
       }
     }
-    else if (argv[1] == std::string("2d"))
+    catch (const std::exception& err)
     {
-      Array2D data = LoadArray2D();
-      std::cout << ToString(data) << std::endl;
-      Interpolation interpolation;
-      std::unique_ptr<Interpolator2D> interpolator = interpolation.Interpolate(std::move(data));
-      try
-      {
-        Array2D result = interpolator->Interpolate(std::get<1>(data.front()).front(), std::get<1>(data.back()).back(), 0.5);
-        std::cout << ToString(result) << std::endl;
-      }
-      catch (const std::exception& err)
-      {
-        std::cout << err.what() << std::endl;
-        throw;
-      }
+      std::cout << err.what() << std::endl;
+      throw;
     }
-    else if (argv[1] == std::string("3d"))
+  }
+  else if (argv[1] == std::string("2d"))
+  {
+    Array2D data = LoadArray2D();
+    DEBUG_LOG << ToString(data) << std::endl;
+    Interpolation interpolation;
+    std::unique_ptr<Interpolator2D> interpolator = interpolation.Interpolate(std::move(data));
+    const Point2D from(
+      std::get<0>(data.front()),
+      std::get<0>(std::get<1>(data.front()).front())
+    );
+
+    const Point2D to(
+      std::get<0>(data.back()),
+      std::get<0>(std::get<1>(data.back()).back())
+    );
+
+    try
     {
-      Array3D data = LoadArray3D();
-      std::cout << ToString(data) << std::endl;
-      Interpolation interpolation;
-      std::unique_ptr<Interpolator3D> interpolator = interpolation.Interpolate(std::move(data));
-      try
-      {
-        Array3D result = interpolator->Interpolate(Point3D(1, 1, 1), Point3D(3, 3, 3), 0.5);
-        std::cout << ToString(result) << std::endl;
-      }
-      catch (const std::exception& err)
-      {
-        std::cout << err.what() << std::endl;
-        throw;
-      }
+      Array2D result = interpolator->Interpolate(from, to, step);
+      std::cout << "Result:" << std::endl << ToString(result) << std::endl;
+    }
+    catch (const std::exception& err)
+    {
+      std::cout << err.what() << std::endl;
+      throw;
+    }
+  }
+  else if (argv[1] == std::string("3d"))
+  {
+    Array3D data = LoadArray3D();
+    DEBUG_LOG << ToString(data) << std::endl;
+    Interpolation interpolation;
+    std::unique_ptr<Interpolator3D> interpolator = interpolation.Interpolate(std::move(data));
+    const Point3D from(
+          std::get<0>(data.front()),
+          std::get<0>(std::get<1>(data.front()).front()),
+          std::get<0>(std::get<1>(std::get<1>(data.front()).front()).front())
+        );
+    const Point3D to(
+          std::get<0>(data.back()),
+          std::get<0>(std::get<1>(data.back()).back()),
+          std::get<0>(std::get<1>(std::get<1>(data.back()).back()).back())
+        );
+
+    try
+    {
+      Array3D result = interpolator->Interpolate(from, to, step);
+      std::cout << ToString(result) << std::endl;
+    }
+    catch (const std::exception& err)
+    {
+      std::cout << err.what() << std::endl;
+      throw;
     }
   }
 }
