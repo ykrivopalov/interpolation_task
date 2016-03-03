@@ -111,6 +111,11 @@ void SetBorderIterators(const Container& data, double value, const Iterator& low
 Array2D Interpolator2D::Interpolate(const Point2D& from, const Point2D& to, double step) const
 {
   Array2D result;
+  result.reserve(
+      static_cast<int>((std::get<0>(to) - std::get<0>(from)) / step + 1)
+      * static_cast<int>((std::get<1>(to) - std::get<1>(from)) / step + 1)
+  );
+
   for (double x = std::get<0>(from); x <= std::get<0>(to); x += step)
   {
     Array2D::const_iterator x0RowIter;
@@ -178,6 +183,11 @@ std::function<double (Point3D)> Interpolator3D::GetFunction() const
 Array3D Interpolator3D::Interpolate(const Point3D& from, const Point3D& to, double step) const
 {
   Array3D result;
+  result.reserve(
+      static_cast<int>((std::get<0>(to) - std::get<0>(from)) / step + 1)
+      * static_cast<int>((std::get<1>(to) - std::get<1>(from)) / step + 1)
+      * static_cast<int>((std::get<2>(to) - std::get<2>(from)) / step + 1)
+  );
   for (double x = std::get<0>(from); x <= std::get<0>(to); x += step)
   {
     Array3D::const_iterator x0RowIter;
